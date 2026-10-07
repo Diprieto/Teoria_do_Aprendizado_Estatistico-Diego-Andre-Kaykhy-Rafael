@@ -1,0 +1,322 @@
+% ==========================================================
+% ENTREGA 1 — A pergunta do trabalho
+% Teoria do Aprendizado Estatístico — Ciências de Dados
+% Fatec Baixada Santista – Rubens Lara
+% ==========================================================
+
+\documentclass[
+  article,
+  12pt,
+  oneside,
+  a4paper,
+  english,
+  brazil
+]{abntex2}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{icomma}
+\usepackage{booktabs}
+\usepackage[alf]{abntex2cite}
+
+\hypersetup{hidelinks}
+
+% ----------------------------------------------------------
+% MARGENS
+% ----------------------------------------------------------
+
+\setlrmarginsandblock{2.2cm}{2.2cm}{*}
+\setulmarginsandblock{2.2cm}{2.2cm}{*}
+\checkandfixthelayout
+
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+
+% ----------------------------------------------------------
+% DADOS DA ENTREGA
+% ----------------------------------------------------------
+
+\titulo{A pergunta do trabalho: \textit{Qual será o volume total de carga movimentado no primeiro trimestre de 2027?}}
+
+\tituloestrangeiro{}
+
+\autor{Predicarga}
+
+\local{Santos-SP}
+
+\data{\today}
+
+\newcommand{\nomecurso}{Tecnologia em Ciência de Dados}
+
+\newcommand{\nomedisciplina}{Teoria do Aprendizado Estatístico}
+
+\newcommand{\nomeprofessor}{Prof.\ Dr.\ João Paulo Ferreira de Mello}
+
+\newcommand{\repositorio}{https://github.com/Diprieto/Teoria_do_Aprendizado_Estatistico-Diego-Andre-Kaykhy-Rafael.git}
+
+\newcommand{\integrantes}{%
+  André Franco \\
+  Diego de Farias Carazo Prieto \\
+  Kaykhy Donizete Freitas de Oliveira \\
+  Rafael de Sousa Rodrigues Pinto
+}
+
+% ==========================================================
+% DOCUMENTO
+% ==========================================================
+
+\begin{document}
+
+% ----------------------------------------------------------
+% CONFIGURAÇÃO DO R
+% ----------------------------------------------------------
+
+<<setup, include=FALSE>>=
+library(knitr)
+
+opts_chunk$set(
+  echo       = FALSE,
+  message    = FALSE,
+  warning    = FALSE,
+  fig.align  = "center",
+  out.width  = "0.32\\linewidth",
+  fig.width  = 3.2,
+  fig.height = 1.8
+)
+
+options(OutDec = ",", digits = 4)
+@
+
+% ----------------------------------------------------------
+% DADOS
+% ----------------------------------------------------------
+
+<<dados, include=FALSE>>=
+dados    <- iris
+resposta <- "Sepal.Length"
+
+tex <- function(x) gsub("_", "\\\\_", x)
+
+y            <- dados[[resposta]]
+quantitativa <- is.numeric(y)
+
+n            <- 129869
+p            <- 3
+
+resposta_tex <- "TOTAL\\_TONELADAS"
+
+texto_base       <- "RMSE = 9.398,57 toneladas"
+nome_base        <- "chutar sempre a m\\'edia"
+palavra_tipo     <- "regress\\~ao"
+palavra_resposta <- "quantitativa"
+palavra_metrica  <- "RMSE, em toneladas"
+texto_cor        <- "\\texttt{TOTAL\\_TEU}: 0,168"
+texto_balanco    <- "n\\~ao se aplica (resposta quantitativa)"
+texto_falta      <- "nenhum"
+@
+
+\selectlanguage{brazil}
+\frenchspacing
+
+% ==========================================================
+% IDENTIFICAÇÃO
+% ==========================================================
+
+\maketitle
+
+\begin{center}
+  \small
+  Fatec Baixada Santista -- Rubens Lara \\
+  \nomecurso{} \quad|\quad
+  \nomedisciplina{} \quad|\quad
+  \nomeprofessor{} \\[0.2em]
+
+  \integrantes \\[0.2em]
+
+  Repositório:
+  \texttt{\repositorio}
+\end{center}
+
+\textual
+
+% ==========================================================
+% INTRODUÇÃO
+% ==========================================================
+
+\section{Introdução}
+
+O objetivo deste trabalho é fazer uma predição quantitativa do volume de cargas do porto de Santos que serão movimentadas no primeiro trimestre de 2027, utilizando um arquivo .csv do banco de dados oficial do Porto de Santos. Como o Porto de Santos é um ativo essencial para a economia do Estado de São Paulo e também do país, ter um planejamento preditivo auxilia na mitigação de gargalos operacionais e logísticos, algo que o banco de dados com informações de tempo, volume e número de cargas pode cumprir.
+
+% ==========================================================
+% O BANCO DE DADOS E O PROBLEMA
+% ==========================================================
+
+\section{O banco de dados e o problema}
+
+O banco de dados utilizado foi extraído do site oficial de Informações Operacionais e Estatísticas da Autoridade Portuária de Santos no dia 11/08/2026. O banco de dados é um arquivo .csv completo de 2005 até a metade de 2026, contendo 129.870 linhas e 16 colunas. As colunas principais são \texttt{TOTAL\_TONELADAS} (\textit{Target}) (numérico), com observações $n = 129.869$, e \texttt{ANO\_MES} (data), \texttt{TIPO\_NAVEGAÇÃO} (categórico) e \texttt{NATUREZA\_CARGA} (categórico) (\textit{Preditores}), $p = 3$.
+
+\texttt{TOTAL\_TONELADAS} é o volume das cargas que se busca prever, \texttt{ANO\_MES} é o período de tempo, \texttt{TOTAL\_TEU} é o volume em TEUs e \texttt{NATUREZA\_CARGA} é o tipo das cargas em granel.
+
+O banco de dados foi escolhido pela importância do Porto de Santos na economia de São Paulo e pela necessidade de prever a tramitação das cargas portuárias, algo essencial para o desenvolvimento do porto. O interesse veio da alta importância do Porto de Santos, como mencionado acima, e não veio de uma recomendação ou proficiência na área.
+
+Este trabalho visa ajudar a Autoridade Portuária de Santos (APS) em união com os gerentes de terminais privados, como Santos Brasil, DP World, Bunge, entre outros. A pergunta ajuda a responder outras questões, como quantos navios poderão ser recebidos simultaneamente sem gerar fila de espera (tempo de \textit{demurrage}) no canal de navegação, contratação e escala de turnos de operadores de portêineres, guindastes e trabalhadores portuários avulsos (OGMO), além da ativação de capacidade extra nos pátios de triagem e regulação das janelas de agendamento de caminhões nas rodovias de acesso (Anchieta/Imigrantes).
+
+
+% ==========================================================
+% A PERGUNTA
+% ==========================================================
+
+\section{A pergunta}
+
+Qual será o volume total de carga movimentado no primeiro trimestre de 2027?
+
+\begin{table}[htb]
+  \centering
+  \caption{Ficha da pergunta}
+  \label{tab:ficha}
+  \small
+
+  \begin{tabular}{@{}p{0.32\textwidth}p{0.63\textwidth}@{}}
+    \toprule
+    \textbf{Campo} & \textbf{Preenchimento} \\
+    \midrule
+
+    1. A pergunta, em uma frase &
+    \textit{Qual será o volume total de carga movimentado no primeiro trimestre de 2027?} \\
+
+    2. Resposta $Y$: coluna, tipo, unidade &
+    \texttt{TOTAL\_TONELADAS} --- quantitativa --- \textit{toneladas} \\
+
+    3. Preditores $X$: quais e quantos &
+    \textit{TOTAL\_TEU, NATUREZA\_CARGA, ANO\_MES} \quad ($p = 3$) \\
+
+    4. Tipo: as três decisões &
+    supervisionado; regressão; \textit{predição} \\
+
+    5. Métrica &
+    RMSE, em toneladas \\
+
+    6. Linha de base a bater &
+    RMSE = 9.398,57 em toneladas \\
+
+    7. Dono do problema &
+    A Diretoria de Operações da APS e gestores de terminais, que decidem a escala de berços, pátios de triagem e manutenção de canais no $1^\circ$ tri/2027. \\
+
+    \bottomrule
+  \end{tabular}
+
+  \fonte{Elaborada pelos autores.}
+\end{table}
+
+A classificação baseia-se nas três decisões metodológicas \cite{james2021}: (1)~\textbf{Supervisionado}, pois a variável resposta $Y$ está rotulada no histórico; (2)~\textbf{Regressão}, pois $Y$ é quantitativa contínua; e (3)~\textbf{Predição}, pois busca-se o menor erro de previsão (RMSE).
+
+O Campo~7 estabelece a utilidade prática: o resultado orienta a Autoridade Portuária e os terminais na calibração de pátios e berços para o $1^\circ$ trimestre de 2027 \cite{aps2026}.
+
+% ==========================================================
+% DEFESA DA PERGUNTA
+% ==========================================================
+
+\section{Defesa da pergunta}
+
+A Tabela~\ref{tab:diag} reúne o diagnóstico do banco de dados.
+
+\begin{table}[htb]
+  \centering
+  \caption{Diagnóstico do banco}
+  \label{tab:diag}
+  \small
+
+  \begin{tabular}{@{}p{0.35\textwidth}p{0.60\textwidth}@{}}
+    \toprule
+    \textbf{Verificação} & \textbf{Resultado} \\
+    \midrule
+
+    Tamanho ($n \times p$) &
+    $129.869 \times 3$ \\
+
+    Linha de base &
+    RMSE = 9.398,57 em toneladas \\
+
+    Maior correlação com $Y$ &
+    \texttt{TOTAL\_TEU}: 0,168 \\
+
+    Balanço das classes &
+    não se aplica (resposta quantitativa) \\
+
+    Valores faltantes &
+    nenhum \\
+
+    \bottomrule
+  \end{tabular}
+
+  \fonte{Elaborada pelos autores.}
+\end{table}
+
+\textbf{Vazamento.}
+
+O preditor com maior correlação com $Y$ foi \texttt{TOTAL\_TEU} ($r = 0{,}168$). Essa relação é natural no porto, pois maior volume de contêineres associa-se a maior massa bruta. O valor fraco descarta vazamento de dados (\textit{leakage}), confirmando que nenhuma variável preditora continha a resposta e nenhuma foi descartada \cite{james2021}.
+
+\textbf{Tamanho.}
+
+O banco possui $n = 129.869$ observações para $p = 3$ preditores candidatos \cite{aps2026}. A alta proporção ($> 43.000$ obs/coluna) garante graus de liberdade para evitar superajuste (\textit{overfitting}) e permite testar modelos não paramétricos e mais flexíveis nas próximas etapas \cite{james2021}.
+
+\textbf{Balanço e faltantes.}
+
+O balanço de classes não se aplica (resposta quantitativa). A auditoria confirmou ausência total de valores faltantes (\textit{missing values}), dispensando imputação de dados \cite{james2021}. A Figura~\ref{fig:resposta} apresenta a distribuição da resposta.
+
+% ==========================================================
+% FIGURA
+% ==========================================================
+
+\begin{figure}[htb]
+  \centering
+  \caption{Distribuição da resposta \texttt{TOTAL\_TONELADAS}}
+  \label{fig:resposta}
+
+<<fig-resposta>>=
+par(
+  mar = c(2.2, 2.2, 0.8, 0.8),
+  mgp = c(1.3, 0.3, 0)
+)
+
+hist(
+  y,
+  breaks = 30,
+  col = "#D6EAF3",
+  border = "white",
+  main = "",
+  xlab = "TOTAL_TONELADAS (toneladas)",
+  ylab = "frequência"
+)
+@
+
+  \fonte{Elaborada pelos autores.}
+\end{figure}
+
+O histograma da Figura~\ref{fig:resposta} exibe forte assimetria à direita, com concentração de operações de menor volume (mediana de $206,33$ t) e cauda longa por grandes embarques de granéis (picos até $160.912$ t) \cite{aps2026}.
+
+\textbf{Veredito.}
+
+A pergunta \textbf{se sustenta plenamente}. O banco apresentou tamanho massivo, integridade completa e isenção de vazamento, estando apto para a modelagem. A pergunta é \textbf{provisória} e será reavaliada após a Aula 12 com o kit supervisionado completo \cite{james2021}.
+
+% ==========================================================
+% REFERÊNCIAS
+% ==========================================================
+
+\postextual
+
+% Faz o Mensário aparecer mesmo sem citação no corpo
+\nocite{aps_mensario2026}
+
+\bibliographystyle{abntex2-alf}
+\bibliography{referencias}
+
+\end{document}
+
+
+
+
+
