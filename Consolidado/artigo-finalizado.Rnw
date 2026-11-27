@@ -329,13 +329,15 @@ A diferença inferior a 1 ponto percentual entre o $R^2$ no conjunto de teste (6
 
 O \textit{Random Forest} superou o GAM na estimativa de \texttt{TOTAL\_TONELADAS} por capturar automaticamente interações não lineares entre os perfis de carga sem exigir especificação manual. Esse ajuste reflete a operação real do porto, na qual \texttt{NATUREZA\_CARGA} separa grandes lotes de granéis de embarques conteinerizados menores, mantendo desempenho estável entre a validação interna e o conjunto de teste.
 
+Embora o RMSE no conjunto de teste (5.873,67~t) indique dispersão residual nas estimativas individuais, esse patamar deve ser interpretado à luz da elevada amplitude entre os volumes movimentados no porto, nos quais embarques de granéis superam em várias ordens de grandeza as operações conteinerizadas. Além disso, a parcela de aproximadamente 38\% de variância não explicada evidencia a influência de fatores externos não observados na base histórica.
+
 Com base nessa estrutura, a projeção de 42,30 milhões de toneladas (42.299.559,59~t) para o primeiro trimestre de 2027 acompanha a tendência de crescimento observada desde 2017 e oferece uma referência quantitativa para o dimensionamento de berços e armazenagem durante o escoamento da safra.
 
 % ==========================================================================
 \section{Conclusão}
 % ==========================================================================
 
-O modelo \textit{Random Forest} teve êxito em responder à questão inicial com a projeção de 42.299.559,59 toneladas movimentadas no Porto de Santos no 1º trimestre de 2027, com estabilidade na explicação.
+O modelo \textit{Random Forest} teve êxito em responder à questão inicial com a projeção de 42.299.559,59 toneladas movimentadas no Porto de Santos no 1º trimestre de 2027, com estabilidade na explicaçã Ressalta-se, contudo, que essa estimativa pressupõe a manutenção do padrão operacional observado em 2026, estando sujeita a oscilações na demanda global e no cenário macroeconômico..
 
 Devido ao porte da base de dados, foi necessário limitar a amostra de treinamento e a quantidade de nós terminais para atender às restrições de memória e processamento do R. Além disso, os registros da ANTAQ e da APS não contemplam variáveis externas, como taxa de câmbio, quebra de safra agrícola e condições climáticas, o que impediu a incorporação desses fatores no modelo.
 
