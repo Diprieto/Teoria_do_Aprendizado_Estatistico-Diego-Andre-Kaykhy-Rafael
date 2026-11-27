@@ -1,0 +1,347 @@
+% ==========================================================
+% ARTIGO FINAL
+% Teoria do Aprendizado Estatístico — Ciência de Dados
+% Fatec Baixada Santista – Rubens Lara
+% R + knitr + abnTeX2, como a Entrega 1
+% ==========================================================
+
+\documentclass[
+  article,
+  12pt,
+  oneside,
+  a4paper,
+  english,
+  brazil
+]{abntex2}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{icomma}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[alf]{abntex2cite}
+
+\hypersetup{hidelinks}
+\emergencystretch=2em
+
+% Aviso vermelho no topo da primeira página quando o modelo não roda
+\newcommand{\aviso}[1]{\par\noindent\fcolorbox{red}{white}{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+  \color{red}\small\textbf{Atenção:} #1}}\par\smallskip}
+
+% ----------------------------------------------------------
+% IDENTIFICAÇÃO
+% ----------------------------------------------------------
+\titulo{Qual será o volume total de carga movimentado no primeiro trimestre de 2027?}
+\tituloestrangeiro{What will be the total volume of cargo handled in the first quarter of 2027?}
+\autor{Predicarga}
+\local{Santos-SP}
+\data{\today}
+
+\newcommand{\nomecurso}{Tecnologia em Ciência de Dados}
+\newcommand{\nomedisciplina}{Teoria do Aprendizado Estatístico}
+\newcommand{\nomeprofessor}{Prof.\ Dr.\ João Paulo Ferreira de Mello}
+\newcommand{\repositorio}{Predicarga}
+\newcommand{\integrantes}{%
+  Diego de Farias Carazo Prieto -- RA 0051352511007 \\
+  André Franco -- RA 0051352511037 \\
+  Kaykhy Donizete Freitas de Oliveira -- RA 0051352511036 \\
+  Rafael de Sousa Rodrigues Pinto -- RA 0051352321025%
+}
+
+\makeatletter
+\hypersetup{pdftitle={\@title}, pdfauthor={\@author}, pdflang={pt-BR}}
+\makeatother
+
+\begin{document}
+
+<<setup, include=FALSE>>=
+library(knitr)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = "",
+               fig.align = "center", fig.width = 5, fig.height = 4.2,
+               out.width = "0.6\\linewidth")
+options(OutDec = ",", digits = 4)
+@
+
+<<modelo, include=FALSE, error=FALSE>>=
+# =========================================================================
+#  O MODELO -- troque somente este bloco
+# =========================================================================
+# 1. O banco, ja limpo pelo codigo do grupo:
+dados <- droplevels(as.data.frame(readRDS("Corpus/exportacao_cargas_1trimestre_2017_2026.rds")))
+
+# 2. A resposta Y e as colunas que NAO entram no modelo:
+if (!is.numeric(dados$ANO_MES)) {
+  dados$ANO_MES <- as.numeric(gsub("-", "", as.character(dados$ANO_MES)))
+}
+
+if (!is.numeric(dados$TOTAL_TONELADAS)) {
+  x_ton <- as.character(dados$TOTAL_TONELADAS)
+  if (any(grepl(",", x_ton, fixed = TRUE))) {
+    x_ton <- gsub("\\.", "", x_ton)
+    x_ton <- gsub(",", ".", x_ton, fixed = TRUE)
+  }
+  dados$TOTAL_TONELADAS <- as.numeric(x_ton)
+}
+
+resposta <- "TOTAL_TONELADAS"
+fora <- c(
+  "TOTAL_TEU", "NUMERO_VIAGEM", "MOVIMENTO", "ANO", "TERMINAIS",
+  "TOTAL_UNID", "MES", "CLASSENAVIO", "SENTIDO", "TIPO_INSTALACAO",
+  "BERCOS", "MERCADORIAS"
+)
+
+# 3. O modelo escolhido Random Forest:
+ajusta <- function(d) {
+  set.seed(1)
+  if (nrow(d) > 100000) {
+    d <- d[sample(nrow(d), 100000), ]
+  }
+  randomForest::randomForest(
+    TOTAL_TONELADAS ~ .,
+    data = d,
+    mtry = 2,
+    ntree = 100,
+    maxnodes = 64
+  )
+}
+# =========================================================================
+@
+
+<<calculos, include=FALSE, error=FALSE>>=
+# ---- daqui para baixo, nada precisa ser trocado -------------------------
+tex <- function(x) {                       # texto vindo dos dados -> LaTeX
+  x <- gsub("\\\\", "\001", as.character(x))
+  x <- gsub("([&%$#_{}])", "\\\\\\1", x)
+  x <- gsub("~", "\\\\textasciitilde{}", x)
+  x <- gsub("\\^", "\\\\textasciicircum{}", x)
+  gsub("\001", "\\\\textbackslash{}", x)
+}
+
+# --- o banco do modelo -----------------------------------------------------
+if (!resposta %in% names(dados))
+  stop("A coluna '", resposta, "' nao esta no banco. Confira 'resposta' no bloco modelo.")
+fora_errada  <- setdiff(fora, names(dados))
+fora         <- intersect(fora, names(dados))
+usa_exemplo  <- identical(dados, iris)
+quantitativa <- is.numeric(dados[[resposta]]) && length(unique(na.omit(dados[[resposta]]))) > 2
+dm <- dados[, setdiff(names(dados), fora), drop = FALSE]
+dm[] <- lapply(dm, function(v) if (is.character(v) || is.logical(v)) factor(v) else v)
+if (!quantitativa) dm[[resposta]] <- factor(dm[[resposta]])
+dm <- na.omit(dm)
+
+# --- o modelo no banco inteiro ---------------------------------------------
+falha  <- NULL
+modelo <- tryCatch(ajusta(dm), error = function(e) { falha <<- conditionMessage(e); NULL })
+
+# --- o relatorio do modelo (item 4 do bloco modelo) ------------------------
+relatorio <- function(m) {
+  op <- options(OutDec = ".", width = 80)   # o relatorio sai como no console do R
+  on.exit(options(op))
+  if (is.null(m)) {
+    cat("O modelo nao rodou: veja o aviso no topo da primeira pagina.\n")
+  } else if (inherits(m, "randomForest")) {
+    print(m)
+    cat("Importancia dos preditores:\n"); print(round(randomForest::importance(m), 3))
+  } else if (inherits(m, "rpart")) {
+    print(m, digits = 3)
+  } else if (inherits(m, "cv.glmnet")) {
+    cat("lambda escolhido pela validacao cruzada:", signif(m$lambda.min, 3), "\n\n")
+    print(coef(m, s = "lambda.min"))
+  } else print(summary(m))
+}
+
+# --- os avisos do topo da primeira pagina ----------------------------------
+avisos <- paste(c(
+  if (usa_exemplo) "\\aviso{o bloco \\texttt{modelo} ainda usa o exemplo (\\texttt{iris}).}",
+  if (!is.null(falha)) paste0("\\aviso{o modelo n\\~ao rodou. Mensagem do R: \\texttt{", tex(falha), "}}"),
+  if (length(fora_errada) > 0) paste0("\\aviso{em \\texttt{fora} h\\'a colunas que n\\~ao est\\~ao no banco: ",
+                                     paste0("\\texttt{", tex(fora_errada), "}", collapse = ", "), ".}")),
+  collapse = "\n")
+@
+
+\selectlanguage{brazil}
+\frenchspacing
+
+\begin{center}
+  {\Large\bfseries \imprimirtitulo\par}
+  \vspace{0.8em}
+  {\large \imprimirautor\par}
+  \vspace{0.6em}
+  \small
+  Fatec Baixada Santista -- Rubens Lara \\
+  \nomecurso{} \quad|\quad \nomedisciplina{} \\
+  \nomeprofessor{} \\[0.4em]
+  \integrantes \\[0.4em]
+  Repositório: \texttt{\repositorio} \quad|\quad \imprimirlocal, \imprimirdata
+\end{center}
+
+\Sexpr{avisos}
+
+\begin{resumoumacoluna}
+Este trabalho tem como objetivo estimar o volume total de carga movimentado no Porto de Santos no 1º trimestre de 2027. Para isso, utilizaram-se 129.869 registros oficiais da Agência Nacional de Transportes Aquaviários (ANTAQ) e da Autoridade Portuária de Santos (APS) referentes aos primeiros trimestres de 2017 a 2026, consolidados nas variáveis de período, tipo de navegação e natureza da carga após a remoção de atributos sujeitos a vazamento de dados. A modelagem foi conduzida por meio do algoritmo \textit{Random Forest} (\texttt{ntree = 100}, \texttt{mtry = 2} e \texttt{maxnodes = 64}), que superou o desempenho de modelos aditivos e alcançou 62,46\% de variância explicada na validação interna, além de $R^2$ de 61,72\% e RMSE de 5.873,67 toneladas na partição de teste (70/30). Aplicado ao perfil operacional do 1º trimestre de 2026 (14.589 operações), o modelo projeta um total de 42.299.559,59 toneladas movimentadas no 1º trimestre de 2027, oferecendo subsídio quantitativo para o planejamento logístico e portuário.
+
+\vspace{\onelineskip}
+\noindent\textbf{Palavras-chave:} Porto de Santos. Previsão de cargas. \textit{Random Forest}. Aprendizado estatístico.
+\end{resumoumacoluna}
+\textual
+
+% ==========================================================================
+\section{Introdução}
+% ==========================================================================
+
+O complexo portuário de Santos-SP é o maior da América Latina e desempenha papel estratégico na inserção econômica do Brasil no comércio exterior. Em 2024, o porto movimentou aproximadamente US\$ 174,43 bilhões em mercadorias e, em 2025, alcançou cerca de US\$ 186,4 bilhões --- o que representa um crescimento de 6,86\% em valor comercial e quase um terço da corrente de comércio exterior brasileira \cite{aps_mensario}. Essa trajetória de expansão reforça a relevância logística do complexo, mas também impõe desafios crescentes ao planejamento operacional, à gestão de berços e terminais e ao dimensionamento da infraestrutura de escoamento.
+
+Diante desse ritmo de crescimento, a capacidade de antecipar o volume físico de cargas torna-se indispensável para a alocação eficiente de recursos portuários. Para isso, escolheu-se o primeiro trimestre de cada ano (meses de janeiro, fevereiro e março), período marcado pela combinação de fluxos contínuos de carga conteinerizada e pela intensificação sazonal do escoamento de granéis sólidos e líquidos. Embora registros públicos detalhados sejam disponibilizados periodicamente pela Agência Nacional de Transportes Aquaviários (ANTAQ) e pela Autoridade Portuária de Santos (APS), transformar esse histórico em estimativas confiáveis exige métodos quantitativos capazes de lidar com a elevada heterogeneidade operacional do porto.
+
+Para atender a essa demanda, recorreu-se a técnicas de \textit{Statistical Learning} \cite{hastie2009,james2021}, entre as quais o algoritmo \textit{Random Forest} se destacou. Conforme explica \citeonline{breiman2001}, esse método combina múltiplas árvores de decisão treinadas sobre reamostragens dos dados, reduzindo a variância das estimativas e mitigando o risco de sobreajuste (\textit{overfitting}) em bases tabulares de grande porte.
+
+% ==========================================================================
+\section{Os dados}
+% ==========================================================================
+
+Os dados utilizados neste estudo foram obtidos junto ao sistema da Agência Nacional de Transportes Aquaviários \cite{antaq_dados}, complementados pelas definições e classificações operacionais do relatório estatístico da Autoridade Portuária de Santos \cite{aps_mensario}. O repositório reúne registros oficiais de movimentação portuária declarados pelos operadores e terminais instalados no complexo portuário de Santos-SP. Para responder à pergunta da pesquisa, aplicou-se um recorte temporal sazonal, selecionando exclusivamente as operações ocorridas nos meses de janeiro, fevereiro e março ao longo dos anos de 2017 a 2026. Após a consolidação e a limpeza, o banco de dados resultou em 129.869 registros válidos.
+
+\subsection{Limpeza e tratamento}
+
+Os dados brutos gerados a partir dos relatórios portuários exigiram uma etapa prévia de padronização no ambiente R \cite{rcore2026} para adequar os tipos das variáveis e selecionar os atributos relevantes para a pesquisa. O principal ajuste concentrou-se na variável-alvo \texttt{TOTAL\_TONELADAS}, originalmente importada como texto utilizando ponto para separar milhares e vírgula para decimais; para viabilizar os cálculos, eliminaram-se os pontos de milhar e substituíram-se as vírgulas decimais por pontos, convertendo toda a coluna para o tipo numérico.
+
+Em seguida, a coluna de período \texttt{ANO\_MES} foi verificada e convertida para o formato numérico inteiro (\texttt{AAAAMM}), permitindo ao modelo capturar simultaneamente a tendência de crescimento anual e a variação mensal dentro do primeiro trimestre. Paralelamente, as variáveis textuais foram convertidas para o tipo \texttt{factor}, aplicando-se \texttt{droplevels()} para descartar categorias residuais sem ocorrência no recorte e \texttt{na.omit()} para excluir registros incompletos, garantindo uma matriz sem valores nulos. Por fim, no ajuste sobre o banco completo, definiu-se uma amostragem aleatória reproduzível (\texttt{set.seed(1)}) limitada a 100.000 registros sempre que o conjunto ultrapassa esse patamar, mantendo a representatividade estatística sem comprometer o tempo de processamento.
+
+\subsection{Justificativa das colunas removidas}
+
+Na etapa de seleção, doze colunas foram removidas antes do treinamento do modelo. A principal motivação dessa exclusão é a prevenção do vazamento de dados (\textit{data leakage}), fenômeno que ocorre quando variáveis disponíveis apenas após a conclusão do evento ou diretamente atreladas à própria variável-alvo são utilizadas como preditoras.
+
+O primeiro grupo descartado reúne as variáveis concorrentes de volume, representadas pelas colunas \texttt{TOTAL\_TEU} e \texttt{TOTAL\_UNID}. Essas variáveis expressam a mesma movimentação em unidades distintas de contagem; por serem contabilizadas simultaneamente ao peso da carga, incluí-las no treinamento faria o modelo deduzir a tonelagem artificialmente a partir de informações que só existem após o término da operação.
+
+O segundo grupo reúne as variáveis operacionais pós-evento, composto por \texttt{NUMERO\_VIAGEM}, \texttt{MOVIMENTO}, \texttt{SENTIDO}, \texttt{CLASSENAVIO}, \texttt{TIPO\_INSTALACAO}, \texttt{BERCOS}, \texttt{TERMINAIS} e \texttt{MERCADORIAS}. Essas variáveis registram detalhes pontuais de cada atracação já realizada ou funcionam como identificadores muito específicos. Em um horizonte de projeção futura para o primeiro trimestre de 2027, tais detalhamentos individuais de viagem e alocação portuária não são conhecidos previamente e induziriam o modelo ao \textit{overfitting}, prejudicando sua capacidade de generalização. Por fim, as colunas \texttt{ANO} e \texttt{MES} foram removidas para evitar redundância de informação, já que ambas estão consolidadas na variável \texttt{ANO\_MES}.
+
+\subsection{Análise exploratória e estrutura final da base}
+
+Após o descarte das variáveis sujeitas a vazamento e redundância, a matriz final consolidou-se com 129.869 registros e exatamente quatro variáveis: a resposta contínua \texttt{TOTAL\_TONELADAS} e três variáveis explicativas estruturais (\texttt{ANO\_MES}, \texttt{TIPO\_NAVEGACAO} e \texttt{NATUREZA\_CARGA}).
+
+A análise exploratória evidencia uma forte padronização operacional entre os perfis de carga do Porto de Santos. A variável \texttt{NATUREZA\_CARGA} atua como o principal fator discriminante do volume movimentado, seguida por \texttt{TIPO\_NAVEGACAO} e \texttt{ANO\_MES}. Enquanto movimentações de carga conteinerizada e carga geral solta apresentam volumes unitários mais pulverizados, os granéis sólidos e granéis líquidos concentram grandes lotes por operação, gerando uma distribuição assimétrica à direita com elevada variância natural. A Tabela~\ref{tab:resumo_dados} sintetiza os recortes da base empregados nas etapas de modelagem e validação.
+
+\begin{table}[htb]
+  \centering
+  \caption{Resumo da estrutura e das partições da base de dados consolidada}
+  \label{tab:resumo_dados}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{4.5cm} >{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}p{6.8cm}}
+    \toprule
+    \textbf{Indicador da Base de Dados} & \textbf{Valor} & \textbf{Papel na Estratégia de Modelagem} \\
+    \midrule
+    Total de observações válidas (2017--2026) & 129.869 registros & Base histórica consolidada do 1º trimestre após limpeza e \texttt{na.omit()}. \\
+    Partição de treinamento (70\%) & 90.908 registros & Treinamento da floresta (\texttt{ntree = 100}, \texttt{mtry = 2}, \texttt{maxnodes = 64}) para avaliação externa. \\
+    Partição de teste (30\%) & 38.961 registros & Validação externa ($R^2$ de 61,72\% e RMSE de 5.873,67~t). \\
+    Recorte mais recente (1º trimestre de 2026) & 14.589 registros & Cenário-base projetado para estimar o 1º trimestre de 2027. \\
+    \bottomrule
+  \end{tabular}
+  \legend{Fonte: Elaborada pelos autores com base nos dados da ANTAQ (2026) e da APS (2026).}
+\end{table}
+
+% ==========================================================================
+\section{A pergunta e o modelo}
+% ==========================================================================
+
+\subsection{A pergunta}
+
+A questão norteadora deste estudo é: qual será o volume total de carga movimentado no primeiro trimestre de 2027? Para respondê-la, o problema foi estruturado como uma tarefa de regressão supervisionada no nível de operação individual. Em lugar de ajustar um modelo agregado sobre poucos pontos anuais, estima-se a tonelagem de cada registro a partir de seus atributos estruturais e, posteriormente, somam-se as predições aplicadas ao perfil operacional do primeiro trimestre de 2026 para obter o total projetado de 2027.
+
+\subsection{O modelo escolhido}
+
+O problema exige que uma variável contínua como \texttt{TOTAL\_TONELADAS} seja prevista por meio de preditores categóricos e temporais (\texttt{NATUREZA\_CARGA}, \texttt{TIPO\_NAVEGACAO} e \texttt{ANO\_MES}), razão pela qual se optou pela \textit{Random Forest}. A floresta aleatória foi selecionada por superar as limitações de modelos lineares e a instabilidade de árvores de decisão isoladas, dada a estrutura do Porto de Santos, fazendo uso da técnica de \textit{bagging}, que combina múltiplas árvores treinadas em amostras \textit{bootstrap} distintas da base de dados \cite{breiman1996,breiman2001}.
+
+Além disso, o algoritmo permite a captura natural de interações entre variáveis categóricas e o tempo. Em problemas nos quais a maioria dos preditores é categórica e temporal, modelos como o de Mínimos Quadrados Ordinários (MQO) ou o LASSO (\textit{Least Absolute Shrinkage and Selection Operator}) \cite{tibshirani1996,hastie2009} necessitariam de dezenas de termos escritos manualmente para diferenciar o comportamento de granéis sólidos de longo curso frente ao de contêineres na cabotagem; já a floresta isola essas combinações automaticamente por meio de partições sucessivas. Outro fator decisivo é a adequação a dados assimétricos sem a necessidade de premissas paramétricas, pois o volume em toneladas é altamente assimétrico e apresenta grandes diferenças entre os tipos de carga, como os navios graneleiros, que movimentam dezenas de milhares de toneladas, enquanto outras cargas movimentam frações disso. Enquanto modelos paramétricos e aditivos como os Modelos Aditivos Generalizados (GAM) \cite{wood2017} dependem de funções de ligação ou curvas suaves que sofrem com esses saltos discretos entre as cargas, a \textit{Random Forest} não exige normalidade nem linearidade. Em testes comparativos realizados com os demais modelos avaliados, a \textit{Random Forest} apresentou o menor erro quadrático e a maior capacidade explicativa, atingindo aproximadamente 62\% de variância explicada e RMSE de 5.873,67 toneladas no teste, o que evidencia empiricamente sua superioridade preditiva.
+
+\subsubsection{Hiperparâmetros e ajuste computacional}
+
+Os argumentos do modelo foram definidos na função \texttt{ajusta()}, começando por \texttt{set.seed(1)}, em que o parâmetro ``1'' garante a geração das mesmas amostras e árvores a cada compilação. O comando \texttt{d[sample(nrow(d), 100000), ]} reduz as observações de 129.869 registros para 100.000, evitando o estouro de memória e mantendo aproximadamente 77\% da base original. Para não depender de uma única árvore, utilizou-se \texttt{ntree = 100}, que treina 100 árvores distintas com \texttt{mtry = 2} variáveis candidatas sorteadas por divisão --- evitando que a floresta fique dependente de um único preditor --- e calcula a média de suas previsões, reduzindo o erro e estabilizando o resultado. Em seguida, \texttt{maxnodes = 64} limita o número de nós terminais das 100 árvores para evitar ramificações excessivamente específicas que poderiam causar \textit{overfitting}, além de elevar o tempo de execução. Essas restrições foram necessárias porque o pacote \texttt{randomForest} \cite{liaw2002} aloca matrizes extensas e, se a base completa fosse empregada, extrapolaria o limite de memória e indexação do R; a subamostragem contorna esse problema sem prejudicar a representatividade estatística dos dados.
+
+\subsubsection{Estratégia de validação e cenário de previsão}
+
+Devido ao grande volume de observações da base frente ao número de preditores e à validação nativa \textit{Out-of-Bag} (OOB) da \textit{Random Forest}, não foi necessário aplicar validação cruzada \textit{K-fold} ou \textit{bootstrap} externo, pois o próprio algoritmo utiliza os registros que ficaram de fora de cada árvore para calcular o erro fora da amostra, entregando uma validação equivalente à cruzada \cite{james2021}. Também se realizou uma divisão aleatória de treino e teste com 70\% (90.908 registros) e 30\% (38.961 registros), como garantia de que o modelo generaliza bem e de que não houve sobreajuste. Por fim, para responder à pergunta do estudo, o modelo treinado é aplicado sobre o perfil operacional do 1º trimestre de 2026 (14.589 registros) com a variável \texttt{ANO\_MES} ajustada para 2027, somando-se as previsões individuais para estimar o volume total do trimestre.
+
+% ==========================================================================
+\section{Resultados}
+% ==========================================================================
+
+A saída apresentada a seguir resume os indicadores de desempenho interno \textit{Out-of-Bag} (OOB) e o grau de importância de cada preditor na redução da impureza dos nós (\texttt{IncNodePurity}).
+
+<<relatorio, size='scriptsize'>>=
+relatorio(modelo)
+@
+
+Na validação \textit{Out-of-Bag}, a floresta explicou 62,46\% da variância, com um MSE de 33.122.881, cuja raiz quadrada corresponde a um RMSE de aproximadamente 5.755,25 toneladas por operação. Observou-se também que a variável \texttt{NATUREZA\_CARGA} ($5{,}385 \times 10^{12}$) concentra a maior parte do ganho de pureza nas divisões, ficando duas ordens de grandeza acima de \texttt{TIPO\_NAVEGACAO} ($9{,}783 \times 10^{10}$) e \texttt{ANO\_MES} ($5{,}802 \times 10^{10}$).
+
+<<avaliacao_teste, results='asis'>>=
+set.seed(1)
+idx_treino <- sample(seq_len(nrow(dm)), size = floor(0.7 * nrow(dm)))
+treino <- dm[idx_treino, ]
+teste  <- dm[-idx_treino, ]
+
+modelo_treino <- ajusta(treino)
+prev_teste    <- predict(modelo_treino, newdata = teste)
+
+rmse_teste <- sqrt(mean((teste$TOTAL_TONELADAS - prev_teste)^2))
+r2_teste   <- 1 - sum((teste$TOTAL_TONELADAS - prev_teste)^2) /
+                  sum((teste$TOTAL_TONELADAS - mean(teste$TOTAL_TONELADAS))^2)
+
+cat(sprintf(
+  "Na validação com divisão aleatória em 70\\%% treino (%s observações) e 30\\%% teste (%s observações), o modelo obteve RMSE de %s toneladas e $R^2$ de %s\\%% no conjunto de teste.\n\n",
+  formatC(nrow(treino), format = "d", big.mark = "."),
+  formatC(nrow(teste), format = "d", big.mark = "."),
+  formatC(rmse_teste, format = "f", digits = 2, big.mark = ".", decimal.mark = ","),
+  formatC(r2_teste * 100, format = "f", digits = 2, decimal.mark = ",")
+))
+@
+
+<<previsao_2027, results='asis'>>=
+max_am <- max(dm$ANO_MES, na.rm = TRUE)
+
+if (max_am > 1e7) {
+  ultimo_ano <- floor(max_am / 10000)
+  base_2027  <- subset(dm, floor(ANO_MES / 10000) == ultimo_ano)
+  base_2027$ANO_MES <- base_2027$ANO_MES + (2027 - ultimo_ano) * 10000
+} else {
+  ultimo_ano <- floor(max_am / 100)
+  base_2027  <- subset(dm, floor(ANO_MES / 100) == ultimo_ano)
+  base_2027$ANO_MES <- base_2027$ANO_MES + (2027 - ultimo_ano) * 100
+}
+
+prev_2027  <- predict(modelo, newdata = base_2027)
+total_2027 <- sum(prev_2027)
+
+cat(sprintf(
+  "Adotando o perfil operacional do primeiro trimestre de %d (%s registros) como cenário-base, o volume total projetado para o primeiro trimestre de 2027 é de %s toneladas.\n",
+  ultimo_ano,
+  formatC(nrow(base_2027), format = "d", big.mark = "."),
+  formatC(total_2027, format = "f", digits = 2, big.mark = ".", decimal.mark = ",")
+))
+@
+
+A diferença inferior a 1 ponto percentual entre o $R^2$ no conjunto de teste (61,72\%) e na validação \textit{Out-of-Bag} (62,46\%) confirma a estabilidade do ajuste e a ausência de sobreajuste (\textit{overfitting}).
+
+% ==========================================================================
+\section{Discussão}
+% ==========================================================================
+
+O \textit{Random Forest} superou o GAM na estimativa de \texttt{TOTAL\_TONELADAS} por capturar automaticamente interações não lineares entre os perfis de carga sem exigir especificação manual. Esse ajuste reflete a operação real do porto, na qual \texttt{NATUREZA\_CARGA} separa grandes lotes de granéis de embarques conteinerizados menores, mantendo desempenho estável entre a validação interna e o conjunto de teste.
+
+Com base nessa estrutura, a projeção de 42,30 milhões de toneladas (42.299.559,59~t) para o primeiro trimestre de 2027 acompanha a tendência de crescimento observada desde 2017 e oferece uma referência quantitativa para o dimensionamento de berços e armazenagem durante o escoamento da safra.
+
+% ==========================================================================
+\section{Conclusão}
+% ==========================================================================
+
+O modelo \textit{Random Forest} teve êxito em responder à questão inicial com a projeção de 42.299.559,59 toneladas movimentadas no Porto de Santos no 1º trimestre de 2027, com estabilidade na explicação.
+
+Devido ao porte da base de dados, foi necessário limitar a amostra de treinamento e a quantidade de nós terminais para atender às restrições de memória e processamento do R. Além disso, os registros da ANTAQ e da APS não contemplam variáveis externas, como taxa de câmbio, quebra de safra agrícola e condições climáticas, o que impediu a incorporação desses fatores no modelo.
+
+Como continuidade deste estudo, recomenda-se treinar o modelo sobre os 129.869 registros integrais da base e incorporar variáveis externas. Além disso, vale avaliar algoritmos de \textit{gradient boosting} \cite{friedman2001}, como XGBoost \cite{chen2016} e LightGBM \cite{ke2017}, para verificar se reduzem ainda mais o erro das projeções.
+
+\postextual
+\bibliography{referencias}
+
+\end{document}
